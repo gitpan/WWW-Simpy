@@ -1,0 +1,10 @@
+Revision history for Perl extension WWW::Simpy.
+
+6/3/06 - Migrated to WWW::Simpy namespace
+
+6/2/06 - Launched first general release, two API methods implemented
+
+0.01  Tue May 30 17:14:13 2006
+	- original version; created by h2xs 1.23 with options
+		-X -n Simpy::API
+
