@@ -12,7 +12,8 @@ WriteMakefile(
                            constant => 1.05,
                            LWP::UserAgent => 2.033,
 			   XML::Parser => 2.34,
-                           URI => 1.35
+                           URI => 1.35,
+			   Data::Dumper => 2.121
                            
                          }, # e.g., Module::Name => 1.1
     ($] >= 5.005 ?     ## Add these new keywords supported since 5.005

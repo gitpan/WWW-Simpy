@@ -7,9 +7,11 @@ use XML::Parser;
 use constant API_BASE => "http://www.simpy.com/simpy/api/rest/";
 use LWP::UserAgent;
 use URI;
+use Data::Dumper;
+
 
 # must be all on one line, or MakeMaker will get confused
-our $VERSION = do { my @r = (q$Revision: 1.6 $ =~ /\d+/g); sprintf "%d."."%03d" x $#r, @r };
+our $VERSION = do { my @r = (q$Revision: 1.8 $ =~ /\d+/g); sprintf "%d."."%03d" x $#r, @r };
 $VERSION = eval $VERSION;
 
 
@@ -71,6 +73,11 @@ WWW::Simpy - Perl interface to Simpy social bookmarking service
   foreach my $k (keys %{$links}) {
     print "url $k was added " . $links->{$k}->{addDate} . "\n";
   }
+
+  my $opts = { fromTag => 'rose', toTag => 'another name' };
+  $sim->RenameTag($cred, $opts) || die $sim->status;
+
+  print $sim->message . "\n";
   
 =head1 DESCRIPTION
 
@@ -146,26 +153,35 @@ sub do_rest {
 }     
 
 
-use Data::Dumper;
-
 # Read the XML returned, and return an object
 sub read_response {
-   my ($self, $xml) = @_;
+  my ($self, $xml) = @_;
 
-   # parse the xml to get 
-   my $p = $self->{_pa};
-   my $anon = $p->parse($xml);
+  # clean up malformed XML
+  $xml =~ s/<!DOCTYPE (.*) SYSTEM>/<!DOCTYPE $1>/m;
 
-   # get Kids of the first xml object therein (there should only be one)
-   my $obj = @{$anon}[0];
-   my @kids = @{$obj->{Kids}};
+  # parse the xml to get 
+  my $p = $self->{_pa};
+  my $anon = $p->parse($xml);
 
-   # set message if one was returned
+  # get Kids of the first xml object therein (there should only be one)
+  my $obj = @{$anon}[0];
+  my @kids = @{$obj->{Kids}};
 
+  # set message if one was returned
+  my $code;
+  my $msg;
+  foreach my $k (@kids) {
+    next if ((ref $k) =~ /::Characters$/);
+    my $ref = ref $k;
+    $ref =~ s/.*::([^\:]*)$/$1/;
+    $code = $k->{'Kids'}->[0]->{'Text'} if $ref eq 'code';
+    $msg  = $k->{'Kids'}->[0]->{'Text'} if $ref eq 'message';
+  }    
+  $self->{_message} = "$code $msg";
 
-
-   # return those kids as an array
-   return @kids;
+  # return those kids as an array
+  return @kids;
 }
 
 
@@ -183,6 +199,12 @@ sub status {
   my ($self) = @_;
   return $self->{_status};
 }
+
+=head3 
+
+Return the message string, if any, returned by the last Simpy REST method.
+
+=cut
 
 sub message {
   my ($self) = @_;
@@ -222,21 +244,75 @@ sub GetTags {
   return \%tags;
 }
 
+=head3 RemoveTag
+
+Removes a tag via the Simpy API.  Returns a true result if successful.  
+
+=cut
+
+sub RemoveTag {
+  my ($self, $cred, $opts) = @_;
+
+  my $xml = do_rest($self, "RemoveTag.do", $cred, $opts);
+  return unless $xml;
+
+  return read_response($self, $xml);
+}
+
+=head3 RenameTag
+
+Renames a tag via the Simpy API.  Returns a true result if successful.  
+
+=cut
+
 sub RenameTag {
   my ($self, $cred, $opts) = @_;
 
   my $xml = do_rest($self, "RenameTag.do", $cred, $opts);
   return unless $xml;
 
-  print $xml;
+  return read_response($self, $xml);
+}
+
+
+=head3 RenameTag
+
+Merges two tags via the Simpy API.  Returns a true result if successful.  
+
+=cut
+
+sub MergeTags {
+  my ($self, $cred, $opts) = @_;
+
+  my $xml = do_rest($self, "MergeTags.do", $cred, $opts);
+  return unless $xml;
 
   return read_response($self, $xml);
 }
 
+
+=head3 SplitTag
+
+Splits a tag via the Simpy API.  Returns a true result if successful.  
+
+=cut
+
+sub SplitTag {
+  my ($self, $cred, $opts) = @_;
+
+  my $xml = do_rest($self, "SplitTag.do", $cred, $opts);
+  return unless $xml;
+
+  return read_response($self, $xml);
+}
+
+
 =head3 GetLinks
 
-Returns an array of hash objects.  Each element of the array describes a 
-link.  
+Returns an hash object of links, keyed by url.  Each link is in turn a 
+hash object of link properties, keyed by property name.  The 'tags' 
+property keys an array reference of tags.  All other properties tag a 
+scalar value.
 
 =cut
 
@@ -291,7 +367,7 @@ methods been developed.
 
 =head1 SEE ALSO
 
-http://simpyapi.sourceforge.net
+http://simpytools.sourceforge.net
 
 http://www.transpartisanmeshworks.org
 
