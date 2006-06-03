@@ -8,6 +8,11 @@ use constant API_BASE => "http://www.simpy.com/simpy/api/rest/";
 use LWP::UserAgent;
 use URI;
 
+# must be all on one line, or MakeMaker will get confused
+our $VERSION = do { my @r = (q$Revision: 1.6 $ =~ /\d+/g); sprintf "%d."."%03d" x $#r, @r };
+$VERSION = eval $VERSION;
+
+
 require Exporter;
 use AutoLoader qw(AUTOLOAD);
 
@@ -29,9 +34,6 @@ our @EXPORT_OK = ( @{ $EXPORT_TAGS{'all'} } );
 our @EXPORT = qw(
 	
 );
-
-our $VERSION =  ((qw$Revision: 1.3 $)[1]/100);
-$VERSION = eval $VERSION;
 
 
 # Preloaded methods go here.
@@ -124,6 +126,7 @@ sub new {
 # internal utility functions - not public methods
 #
 
+# Do the rest call.
 sub do_rest {
    my ($self, $do, $cred, $qry) = @_;
 
@@ -145,6 +148,7 @@ sub do_rest {
 
 use Data::Dumper;
 
+# Read the XML returned, and return an object
 sub read_response {
    my ($self, $xml) = @_;
 
@@ -186,7 +190,7 @@ sub message {
 }
 
 
-=head2 API Methods
+=head2 REST API Methods
 
 See http://www.simpy.com/simpy/service/api/rest/ for more information 
 about required and optional parameters for these methods.
@@ -246,22 +250,22 @@ sub GetLinks {
 
   my %links;
   foreach my $k (@kids) {
-    next unless (ref $k eq "Simpy::link");
+    next if ((ref $k) =~ /::Characters$/);
 
     my %hash;
     $hash{'accessType'} = $k->{accessType};
     my @prop = @{$k->{Kids}};
 
     foreach my $p (@prop) {
+      next if ((ref $p) =~ /::Characters$/);
       my $ref = ref $p;
-      next if ($ref eq "Simpy::Characters");
-      $ref =~ s/^Simpy:://;
+      $ref =~ s/.*::([^\:]*)$/$1/;
       my $obj = $p->{Kids};
 
       if ($ref eq 'tags') {
         my @tags;
         foreach $t (@{$obj}) {
-          next if (ref $t eq "Simpy::Characters");
+          next if ((ref $t) =~ /::Characters$/);
           push @tags, $t->{Kids}->[0]->{'Text'};          
         }
         $hash{$ref} = \@tags;
