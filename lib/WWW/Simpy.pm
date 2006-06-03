@@ -11,7 +11,7 @@ use Data::Dumper;
 
 
 # must be all on one line, or MakeMaker will get confused
-our $VERSION = do { my @r = (q$Revision: 1.8 $ =~ /\d+/g); sprintf "%d."."%03d" x $#r, @r };
+our $VERSION = do { my @r = (q$Revision: 1.9 $ =~ /\d+/g); sprintf "%d."."%03d" x $#r, @r };
 $VERSION = eval $VERSION;
 
 
@@ -158,6 +158,7 @@ sub read_response {
   my ($self, $xml) = @_;
 
   # clean up malformed XML
+  $xml =~ s/<!DOCTYPE (.*) "SYSTEM">/<!DOCTYPE $1>/m;
   $xml =~ s/<!DOCTYPE (.*) SYSTEM>/<!DOCTYPE $1>/m;
 
   # parse the xml to get 
@@ -178,7 +179,7 @@ sub read_response {
     $code = $k->{'Kids'}->[0]->{'Text'} if $ref eq 'code';
     $msg  = $k->{'Kids'}->[0]->{'Text'} if $ref eq 'message';
   }    
-  $self->{_message} = "$code $msg";
+  $self->{_message} = "$msg (code $code)";
 
   # return those kids as an array
   return @kids;
