@@ -11,7 +11,7 @@ use Data::Dumper;
 
 
 # must be all on one line, or MakeMaker will get confused
-our $VERSION = do { my @r = (q$Revision: 1.9 $ =~ /\d+/g); sprintf "%d."."%03d" x $#r, @r };
+our $VERSION = do { my @r = (q$Revision: 1.11 $ =~ /\d+/g); sprintf "%d."."%03d" x $#r, @r };
 $VERSION = eval $VERSION;
 
 
@@ -58,14 +58,12 @@ WWW::Simpy - Perl interface to Simpy social bookmarking service
 
   my $cred = { user => "demo", pass => "demo" };
 
-
   my $opts = { limit => 10 }; 
   my $tags = $sim->GetTags($cred, $opts) || die $sim->status;
 
   foreach my $k (keys %{$tags}) {
     print "tag $k has a count of " . $tags->{$k} . "\n";
   }
-
 
   my $opts = { limit => 10, q = "search" };
   my $links = $sim->GetTags($cred, $opts) || die $sim->status;
@@ -161,9 +159,13 @@ sub read_response {
   $xml =~ s/<!DOCTYPE (.*) "SYSTEM">/<!DOCTYPE $1>/m;
   $xml =~ s/<!DOCTYPE (.*) SYSTEM>/<!DOCTYPE $1>/m;
 
+die $xml;
+
   # parse the xml to get 
   my $p = $self->{_pa};
-  my $anon = $p->parse($xml);
+  my $anon;
+  eval { $anon = $p->parse($xml); };    # trap errors
+  $self->{_status} = $@;
 
   # get Kids of the first xml object therein (there should only be one)
   my $obj = @{$anon}[0];
@@ -192,7 +194,8 @@ Return status information from API method calls.
 
 =head3 
 
-Return the HTTP status of the last call to the Simpy REST server.
+Return the HTTP status of the last call to the Simpy REST server, or 
+syntax errors from the XML::Parser module, if any.
 
 =cut
 

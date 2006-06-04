@@ -1,6 +1,9 @@
 Revision history for Perl extension WWW::Simpy.
 
-6/3/06 - Migrated to WWW::Simpy namespace
+
+6/3/06 - Catch XML::Parse errors
+	 Added *Tag methods
+	 Migrated to WWW::Simpy namespace
 
 6/2/06 - Launched first general release, two API methods implemented
 
