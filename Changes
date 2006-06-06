@@ -1,6 +1,9 @@
 Revision history for Perl extension WWW::Simpy.
 
 
+6/4/06 - Export PUBLIC / PRIVATE for accessType
+         Use POST rather than GET
+
 6/3/06 - Catch XML::Parse errors
 	 Added *Tag methods
 	 Migrated to WWW::Simpy namespace

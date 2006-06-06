@@ -4,16 +4,20 @@ use 5.006001;
 use strict;
 use warnings;
 use XML::Parser;
-use constant API_BASE => "http://www.simpy.com/simpy/api/rest/";
 use LWP::UserAgent;
 use URI;
+use HTTP::Request::Common;
 use Data::Dumper;
 
 
-# must be all on one line, or MakeMaker will get confused
-our $VERSION = do { my @r = (q$Revision: 1.11 $ =~ /\d+/g); sprintf "%d."."%03d" x $#r, @r };
-$VERSION = eval $VERSION;
+use constant API_BASE => "http://www.simpy.com/simpy/api/rest/";
 
+use constant PUBLIC => 1;
+use constant PRIVATE => 0;
+
+# must be all on one line, or MakeMaker will get confused
+our $VERSION = do { my @r = (q$Revision: 1.13 $ =~ /\d+/g); sprintf "%d."."%03d" x $#r, @r };
+$VERSION = eval $VERSION;
 
 require Exporter;
 use AutoLoader qw(AUTOLOAD);
@@ -27,13 +31,13 @@ our @ISA = qw(Exporter);
 # This allows declaration	use Simpy ':all';
 # If you do not need this, moving things directly into @EXPORT or @EXPORT_OK
 # will save memory.
-our %EXPORT_TAGS = ( 'all' => [ qw(
+our %EXPORT_TAGS = ( 'all' => [ qw( 
 	
 ) ] );
 
 our @EXPORT_OK = ( @{ $EXPORT_TAGS{'all'} } );
 
-our @EXPORT = qw(
+our @EXPORT = qw( PUBLIC PRIVATE
 	
 );
 
@@ -86,9 +90,9 @@ THIS IS AN ALPHA RELEASE.  This module should not be relied on for any
 purpose, beyond serving as an indication that a reliable version will be
 forthcoming at some point the future.
 
-This module is being developed as part of the "tagged wiki" component of
-the Transpartisan Meshworks project ( http://www.transpartisanmeshworks.org ).
-The "tagged wiki" will integrate social bookmarking and collaborative 
+This module is being developed as part of the "mesh pooling" component 
+ofthe Transpartisan Meshworks project ( http://www.transpartisanmeshworks.org ).
+The mesh pool will integrate social bookmarking and collaborative 
 content development in a single application.
 
 =head2 EXPORT
@@ -119,8 +123,10 @@ sub new {
   };
 
   # configure our web user agent
-  my $agent = $self->{_ua}->agent;
-  $self->{_ua}->agent("WWW::Simpy $VERSION ($agent)");
+  my $ua = $self->{_ua};
+  $ua->agent("WWW::Simpy $VERSION ($agent)");
+  push @{ $ua->requests_redirectable }, 'POST';
+  $self->{_ua} = $ua;
 
   # okay, we can go now
   bless $self, $class;
@@ -131,8 +137,28 @@ sub new {
 # internal utility functions - not public methods
 #
 
-# Do the rest call.
 sub do_rest {
+   my ($self, $do, $cred, $qry) = @_;
+
+   # set up our REST query
+   my $uri = URI->new_abs($do, API_BASE);
+#   $uri->query_form($qry);
+#   my $req = HTTP::Request->new(GET => $uri);
+#   $req->authorization_basic($cred->{'user'}, $cred->{'pass'});
+
+   # talk to the REST server
+   my $ua = $self->{"_ua"};
+   $ua->credentials("www.simpy.com:80", "/simpy/api/rest", 
+                    $cred->{'user'}, $cred->{'pass'});
+   my $resp = $ua->request(POST $uri, $qry);
+   $self->{_status} = $resp->status_line;
+
+   # return document, or undef if not successful   
+   return $resp->content if ($resp->is_success);
+}
+
+# Do the rest call.
+sub do_rest_get {
    my ($self, $do, $cred, $qry) = @_;
 
    # set up our REST query
@@ -154,12 +180,6 @@ sub do_rest {
 # Read the XML returned, and return an object
 sub read_response {
   my ($self, $xml) = @_;
-
-  # clean up malformed XML
-  $xml =~ s/<!DOCTYPE (.*) "SYSTEM">/<!DOCTYPE $1>/m;
-  $xml =~ s/<!DOCTYPE (.*) SYSTEM>/<!DOCTYPE $1>/m;
-
-die $xml;
 
   # parse the xml to get 
   my $p = $self->{_pa};
@@ -223,7 +243,7 @@ about required and optional parameters for these methods.
 
 =head3 GetTags
 
-Returns an object has of tag/count pairs.
+Returns a hash reference of tag/count pairs.
 
    my $tags = $s->GetTags($cred, $opts);
    print "The tag 'dolphin' has a count of " . $tags->{dolphin};
@@ -313,10 +333,13 @@ sub SplitTag {
 
 =head3 GetLinks
 
-Returns an hash object of links, keyed by url.  Each link is in turn a 
-hash object of link properties, keyed by property name.  The 'tags' 
-property keys an array reference of tags.  All other properties tag a 
-scalar value.
+Returns an hash reference of links, keyed by url.  Each link is in turn 
+a hash reference of link properties, keyed by property name.  The 
+value of the 'tags' property keys is an array reference of tags.  All 
+other properties tag a scalar value.  
+
+The exported constants PUBLIC and PRIVATE can be used to check the value 
+of the accessType property.
 
 =cut
 
@@ -333,7 +356,7 @@ sub GetLinks {
     next if ((ref $k) =~ /::Characters$/);
 
     my %hash;
-    $hash{'accessType'} = $k->{accessType};
+    $hash{'accessType'} = { $k->{accessType} eq "public" } ? PUBLIC : PRIVATE;
     my @prop = @{$k->{Kids}};
 
     foreach my $p (@prop) {
@@ -361,6 +384,20 @@ sub GetLinks {
   return \%links;   
 }
 
+=head3 SaveLink
+
+Splits a tag via the Simpy API.  Returns a true result if successful.  
+
+=cut
+
+sub SaveLink {
+  my ($self, $cred, $opts) = @_;
+
+  my $xml = do_rest($self, "SaveLink.do", $cred, $opts);
+  return unless $xml;
+
+  return read_response($self, $xml);
+}
 
 
 =head1 CAVEATS
