@@ -10,13 +10,22 @@ use HTTP::Request::Common;
 use Data::Dumper;
 
 
-use constant API_BASE => "http://www.simpy.com/simpy/api/rest/";
+use constant API_NETLOC => "www.simpy.com:80";
+use constant API_REALM => "/simpy/api/rest";
+use constant API_BASE => "http://" . API_NETLOC . API_REALM . "/";
 
 use constant PUBLIC => 1;
 use constant PRIVATE => 0;
 
+use constant SUCCESS => 0;
+use constant PARAMETER_MISSING => 100;
+use constant NONEXISTENT_ENTITY => 200;
+use constant TRANSIENT_ERROR => 300;
+use constant STORAGE_ERROR => 301;
+use constant QUOTA_REACHED => 500;
+
 # must be all on one line, or MakeMaker will get confused
-our $VERSION = do { my @r = (q$Revision: 1.13 $ =~ /\d+/g); sprintf "%d."."%03d" x $#r, @r };
+our $VERSION = do { my @r = (q$Revision: 1.14 $ =~ /\d+/g); sprintf "%d."."%03d" x $#r, @r };
 $VERSION = eval $VERSION;
 
 require Exporter;
@@ -38,7 +47,12 @@ our %EXPORT_TAGS = ( 'all' => [ qw(
 our @EXPORT_OK = ( @{ $EXPORT_TAGS{'all'} } );
 
 our @EXPORT = qw( PUBLIC PRIVATE
-	
+			SUCCESS
+			PARAMETER_MISSING
+			NONEXISTENT_ENTITY
+			TRANSIENT_ERROR
+			STORAGE_ERROR
+			QUOTA_REACHED
 );
 
 
@@ -97,8 +111,21 @@ content development in a single application.
 
 =head2 EXPORT
 
-None by default.
+=head3 accessorType
 
+The accessorType property of a link may be PUBLIC or PRIVATE.
+
+=head3 code
+
+The Simpy status code may be any of the following constants.
+
+   # SUCCESS			- Success
+   # PARAMETER_MISSING		- Required parameter missing
+   # NONEXISTENT_ENTITY		- Non-existent entity
+   # TRANSIENT_ERROR		- Transient data retrieval error
+   # STORAGE_ERROR		- Entity storage error
+   # QUOTA_REACHED		- Storage quota exceeded
+		
 =cut
 
 =head1 METHODS
@@ -119,7 +146,8 @@ sub new {
     _ua => LWP::UserAgent->new,
     _status => undef,
     _pa => new XML::Parser(Style => 'Objects'),
-    _message => undef
+    _message => undef,
+    _code => undef
   };
 
   # configure our web user agent
@@ -142,23 +170,24 @@ sub do_rest {
 
    # set up our REST query
    my $uri = URI->new_abs($do, API_BASE);
-#   $uri->query_form($qry);
-#   my $req = HTTP::Request->new(GET => $uri);
-#   $req->authorization_basic($cred->{'user'}, $cred->{'pass'});
 
    # talk to the REST server
    my $ua = $self->{"_ua"};
-   $ua->credentials("www.simpy.com:80", "/simpy/api/rest", 
-                    $cred->{'user'}, $cred->{'pass'});
-   my $resp = $ua->request(POST $uri, $qry);
+   $ua->credentials(API_NETLOC, API_REALM, $cred->{'user'}, $cred->{'pass'});
+   my $resp = $ua->post($uri, $qry);
+   $ua->credentials(API_NETLOC, API_REALM, undef, undef);
    $self->{_status} = $resp->status_line;
 
-   # return document, or undef if not successful   
+   if ($resp->status_line !~ /^200/) {
+     $self->{_status} .= "\n" . $resp->content;
+   }
+
+   # return document, or undef if not successful  
    return $resp->content if ($resp->is_success);
 }
 
 # Do the rest call.
-sub do_rest_get {
+sub do_rest_old {
    my ($self, $do, $cred, $qry) = @_;
 
    # set up our REST query
@@ -192,8 +221,8 @@ sub read_response {
   my @kids = @{$obj->{Kids}};
 
   # set message if one was returned
-  my $code;
-  my $msg;
+  my $code = undef;
+  my $msg = undef;
   foreach my $k (@kids) {
     next if ((ref $k) =~ /::Characters$/);
     my $ref = ref $k;
@@ -201,7 +230,8 @@ sub read_response {
     $code = $k->{'Kids'}->[0]->{'Text'} if $ref eq 'code';
     $msg  = $k->{'Kids'}->[0]->{'Text'} if $ref eq 'message';
   }    
-  $self->{_message} = "$msg (code $code)";
+  $self->{_message} = $msg;
+  $self->{_code} = $code;
 
   # return those kids as an array
   return @kids;
@@ -212,7 +242,7 @@ sub read_response {
 
 Return status information from API method calls.
 
-=head3 
+=head3 status
 
 Return the HTTP status of the last call to the Simpy REST server, or 
 syntax errors from the XML::Parser module, if any.
@@ -224,17 +254,28 @@ sub status {
   return $self->{_status};
 }
 
-=head3 
+=head3 message
 
 Return the message string, if any, returned by the last Simpy REST method.
 
-=cut
+=cut 
 
 sub message {
   my ($self) = @_;
   return $self->{_message};
 }
 
+=head3 code
+
+Return the Simpy error code, if any, returned by the last Simpy REST 
+method.
+
+=cut
+
+sub code {
+  my ($self) = @_;
+  return $self->{_code};
+}
 
 =head2 REST API Methods
 

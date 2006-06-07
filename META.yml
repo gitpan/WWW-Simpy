@@ -1,7 +1,7 @@
 # http://module-build.sourceforge.net/META-spec.html
 #XXXXXXX This is a prototype!!!  It will change in the future!!! XXXXX#
 name:         WWW-Simpy
-version:      1.013
+version:      1.014
 version_from: lib/WWW/Simpy.pm
 installdirs:  site
 requires:
