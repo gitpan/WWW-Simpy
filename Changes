@@ -1,6 +1,10 @@
 Revision history for Perl extension WWW::Simpy.
 
 
+6/6/06 - status method now returns Simpy error code, if any
+	 Methods return undef is status other than zero
+         Simpy Status codes now exported
+         
 6/4/06 - Export PUBLIC / PRIVATE for accessType
          Use POST rather than GET
 

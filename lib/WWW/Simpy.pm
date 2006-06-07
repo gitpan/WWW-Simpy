@@ -25,7 +25,7 @@ use constant STORAGE_ERROR => 301;
 use constant QUOTA_REACHED => 500;
 
 # must be all on one line, or MakeMaker will get confused
-our $VERSION = do { my @r = (q$Revision: 1.14 $ =~ /\d+/g); sprintf "%d."."%03d" x $#r, @r };
+our $VERSION = do { my @r = (q$Revision: 1.15 $ =~ /\d+/g); sprintf "%d."."%03d" x $#r, @r };
 $VERSION = eval $VERSION;
 
 require Exporter;
@@ -165,7 +165,8 @@ sub new {
 # internal utility functions - not public methods
 #
 
-sub do_rest {
+# REST call by POST -- to avoid 414 Errors for long URIs
+sub do_rest_post {
    my ($self, $do, $cred, $qry) = @_;
 
    # set up our REST query
@@ -186,8 +187,8 @@ sub do_rest {
    return $resp->content if ($resp->is_success);
 }
 
-# Do the rest call.
-sub do_rest_old {
+# REST-standard GET request
+sub do_rest {
    my ($self, $do, $cred, $qry) = @_;
 
    # set up our REST query
@@ -232,11 +233,11 @@ sub read_response {
   }    
   $self->{_message} = $msg;
   $self->{_code} = $code;
+  $self->{_status} = "$code: $msg";
 
   # return those kids as an array
-  return @kids;
+  return @kids unless ($code);
 }
-
 
 =head2 Accessor Methods
 
@@ -245,7 +246,8 @@ Return status information from API method calls.
 =head3 status
 
 Return the HTTP status of the last call to the Simpy REST server, or 
-syntax errors from the XML::Parser module, if any.
+syntax errors from the XML::Parser module, if any, or error from Simpy 
+REST API, if any.
 
 =cut
 
@@ -427,14 +429,14 @@ sub GetLinks {
 
 =head3 SaveLink
 
-Splits a tag via the Simpy API.  Returns a true result if successful.  
+Saves a link via the Simpy API.  Returns a true result if successful.  
 
 =cut
 
 sub SaveLink {
   my ($self, $cred, $opts) = @_;
 
-  my $xml = do_rest($self, "SaveLink.do", $cred, $opts);
+  my $xml = do_rest_post($self, "SaveLink.do", $cred, $opts);
   return unless $xml;
 
   return read_response($self, $xml);
